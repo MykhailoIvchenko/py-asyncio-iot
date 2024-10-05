@@ -1,6 +1,7 @@
 import asyncio
 import time
 
+from app.iot.helpers import run_parallel, run_sequence
 from iot.devices import HueLightDevice, SmartSpeakerDevice, SmartToiletDevice
 from iot.message import Message, MessageType
 from iot.service import IOTService
@@ -21,23 +22,24 @@ async def main() -> None:
         service.register_device(toilet)
     )
 
-    # create a few programs
-    wake_up_program = [
-        Message(hue_light_id, MessageType.SWITCH_ON),
-        Message(speaker_id, MessageType.SWITCH_ON),
-        Message(speaker_id, MessageType.PLAY_SONG, "Rick Astley - Never Gonna Give You Up"),
-    ]
+    await run_sequence(
+        run_parallel(
+            service.send_msg(Message(hue_light_id, MessageType.SWITCH_ON)),
+            service.send_msg(Message(speaker_id, MessageType.SWITCH_ON))
+        ),
+        service.send_msg(Message(speaker_id, MessageType.PLAY_SONG, "Rick Astley - Never Gonna Give You Up"))
+    )
 
-    sleep_program = [
-        Message(hue_light_id, MessageType.SWITCH_OFF),
-        Message(speaker_id, MessageType.SWITCH_OFF),
-        Message(toilet_id, MessageType.FLUSH),
-        Message(toilet_id, MessageType.CLEAN),
-    ]
-
-    # run the programs
-    await service.run_program(wake_up_program)
-    await service.run_program(sleep_program)
+    await run_parallel(
+        run_parallel(
+            service.send_msg(Message(hue_light_id, MessageType.SWITCH_OFF)),
+            service.send_msg(Message(speaker_id, MessageType.SWITCH_OFF))
+        ),
+        run_sequence(
+            service.send_msg(Message(toilet_id, MessageType.FLUSH)),
+            service.send_msg(Message(toilet_id, MessageType.CLEAN))
+        )
+    )
 
 
 if __name__ == "__main__":
